@@ -18,3 +18,5 @@ tokio = { version = "1", features = ["full"] }
 tokio-stream = "0.1"
 tokio-util = { version = "0.7", features = ["io-util", "io"] }
 futures = "0.3.28"
+abao = "0.2.0"
+bao = "0.12.1"
