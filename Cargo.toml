@@ -20,3 +20,6 @@ tokio-util = { version = "0.7", features = ["io-util", "io"] }
 futures = "0.3.28"
 abao = "0.2.0"
 bao = "0.12.1"
+kdtree = "0.7.0"
+kd-tree = "0.5.1"
+diamond-types = "1.0.0"

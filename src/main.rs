@@ -15,9 +15,7 @@ async fn main() {
 
 async fn daemon() {
     let mut bend = Node::new();
-    let (server, _certs) = bend
-        .make_server_endpoint("127.0.0.1:4238".parse().unwrap())
-        .unwrap();
+    let server = bend.endpoint.clone();
     println!("Listening on: {:?}", server.local_addr().unwrap());
 
     //Insert
@@ -26,20 +24,6 @@ async fn daemon() {
     bend.store.insert("fsd dvnenvsdnvdv".to_string());
     bend.store.insert("dfbgnsdjsdavnvjkanlva".to_string());
     bend.store.insert("cbsdjhcbshjks".to_string());
-
-    let mut msg = SyncMessage {
-        //Intentionally set the id to kick off sync
-        id: "Aidan".to_string(),
-        len: 4,
-        start: "cbsdjhcbshjks".to_string(),
-        end: "zvdfvjksnfvjdkdv".to_string(),
-        range_len: 5,
-    };
-    
-
-    let resp = bend.handle_msg(msg).unwrap().unwrap();
-    println!("{} {} + {:?}", resp.0.id, resp.0.start, resp.0.end);
-    println!("{} {}+ {:?}", resp.1.id, resp.1.start, resp.1.end);
 
 
     loop {
@@ -54,7 +38,8 @@ async fn daemon() {
                 }
                 Err(_) => todo!(),
             }
-        }
+            bend.handle_conn(peer).await;
+       }
     }
 }
 

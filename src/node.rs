@@ -1,5 +1,7 @@
 use anyhow::Result;
-use quinn::{congestion, ClientConfig, Endpoint, ServerConfig};
+use diamond_types::list::OpLog;
+use futures::FutureExt;
+use quinn::{congestion, ClientConfig, Connection, Endpoint, ServerConfig};
 use std::{
     collections::{btree_set::Range, hash_map::DefaultHasher, BTreeSet},
     error::Error,
@@ -7,9 +9,10 @@ use std::{
     io::{Cursor, Write},
     net::SocketAddr,
     sync::{Arc, RwLock},
+    thread,
 };
 
-use crate::protocol::SyncMessage;
+use crate::{net, protocol::SyncMessage};
 
 #[derive(Clone)]
 pub struct BendConfig {
@@ -23,6 +26,9 @@ pub struct Node {
     pub config: BendConfig,
     pub out_going_connections: Arc<RwLock<Vec<SocketAddr>>>,
     pub store: BTreeSet<String>,
+    pub op_log: OpLog,
+    pub endpoint: Endpoint,
+    pub cli_endpoint: Endpoint,
 }
 impl Default for BendConfig {
     fn default() -> Self {
@@ -37,69 +43,15 @@ impl Default for BendConfig {
 
 impl Node {
     pub fn new() -> Self {
+        let network = net::Net::new("127.0.0.1:0".parse().unwrap());
         Self {
             config: BendConfig::default(),
             out_going_connections: Arc::new(RwLock::new(Vec::new())),
             store: BTreeSet::new(),
+            op_log: OpLog::new(),
+            endpoint: network.endpoint,
+            cli_endpoint: network.client_endpoint,
         }
-    }
-
-    async fn server(&mut self) -> Result<(), Box<dyn Error>> {
-        let (server_config, server_cert) = Self::configure_server()?;
-        // Bind this endpoint to a UDP socket on the given server address.
-        let endpoint = Endpoint::server(server_config, Self::server_addr())?;
-
-        // Start iterating over incoming connections.
-        while let Some(conn) = endpoint.accept().await {
-            let mut connection = conn.await?;
-
-            // Save connection somewhere, start transferring, receiving data
-        }
-
-        Ok(())
-    }
-
-    async fn client() -> Result<(), Box<dyn Error>> {
-        // Bind this endpoint to a UDP socket on the given client address.
-        let mut endpoint = Endpoint::client(Self::client_addr())?;
-
-        // Connect to the server passing in the server name which is supposed to be in the server certificate.
-        let connection = endpoint.connect(Self::server_addr(), "localhost")?.await?;
-
-        // Start transferring, receiving data, see data transfer page.
-
-        Ok(())
-    }
-
-    fn client_addr() -> SocketAddr {
-        "127.0.0.1:4358".parse::<SocketAddr>().unwrap()
-    }
-
-    fn server_addr() -> SocketAddr {
-        "127.0.0.1:4438".parse::<SocketAddr>().unwrap()
-    }
-
-    pub fn make_server_endpoint(&mut self, bind_addr: SocketAddr) -> Result<(Endpoint, Vec<u8>)> {
-        let (server_config, server_cert) = Self::configure_server()?;
-        let mut endpoint = Endpoint::server(server_config, bind_addr)?;
-        //endpoint.set_default_client_config(ClientConfig::with_native_roots());
-        Ok((endpoint, server_cert))
-    }
-
-    fn configure_server() -> Result<(ServerConfig, Vec<u8>)> {
-        let cert = rcgen::generate_simple_self_signed(vec!["localhost".into()]).unwrap();
-        let cert_der = cert.serialize_der().unwrap();
-        let priv_key = cert.serialize_private_key_der();
-        let priv_key = rustls::PrivateKey(priv_key);
-        let cert_chain = vec![rustls::Certificate(cert_der.clone())];
-
-        let mut server_config = ServerConfig::with_single_cert(cert_chain, priv_key).unwrap();
-        let transport_config = Arc::get_mut(&mut server_config.transport).unwrap();
-        transport_config.max_concurrent_uni_streams(0_u8.into());
-        #[cfg(any(windows, os = "linux"))]
-        transport_config.mtu_discovery_config(Some(quinn::MtuDiscoveryConfig::default()));
-
-        Ok((server_config, cert_der))
     }
 
     pub fn calc_range_id(&mut self, start: String, end: String) -> String {
@@ -112,16 +64,28 @@ impl Node {
         let hash = encoder.finalize().unwrap();
         return hash.to_string();
     }
+    pub async fn handle_conn(&self, mut conn: Connection) {
+        let (mut send, mut recv) = conn.accept_bi().await.unwrap();
+               
+        thread::spawn(|| async move{
+            loop {
+                let mut buf = Vec::new();
+                while let Some(req) = recv.read_chunks(&mut buf).await.unwrap(){
+                    println!("{:?}",req);
+                }
+            }
+        });
+    }
 
-    pub fn handle_msg(
-        &mut self,
-        mut msg: SyncMessage,
-    ) -> Result<Option<(SyncMessage, SyncMessage)>> {
+    fn handle_msg(&mut self, mut msg: SyncMessage) -> Result<Option<(SyncMessage, SyncMessage)>> {
         let mut my_range_hash = self
             .clone()
             .calc_range_id(msg.start.clone(), msg.end.clone());
         //Start Comparison
         if msg.id == my_range_hash {
+            return Ok(None);
+        } else if msg.range_len == 0 {
+            todo!();
             return Ok(None);
         } else {
             let mut count = 0;
@@ -148,6 +112,7 @@ impl Node {
                 start: buf1.first().unwrap().to_string(),
                 end: buf1.last().unwrap().to_string(),
                 range_len: buf1.len() as i32,
+                items: None,
             };
             r1.id = hash3(buf1.clone());
 
@@ -157,6 +122,7 @@ impl Node {
                 start: buf2.first().unwrap().to_string(),
                 end: buf2.last().unwrap().to_string(),
                 range_len: buf2.len() as i32,
+                items: None,
             };
             r2.id = hash3(buf2.clone());
             return Ok(Some((r1, r2)));
@@ -164,7 +130,7 @@ impl Node {
     }
 }
 
-fn hash3(v: Vec<String>) -> String{
+fn hash3(v: Vec<String>) -> String {
     let mut encoded_incrementally = Vec::new();
     let mut encoder = bao::encode::Encoder::new(Cursor::new(&mut encoded_incrementally));
 
