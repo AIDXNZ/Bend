@@ -4,14 +4,14 @@ use anyhow::{self, Result};
 use quinn::{ClientConfig, Endpoint, ServerConfig};
 pub struct Net {
     pub endpoint: Endpoint,
-    pub client_endpoint: Endpoint,
+    //pub client_endpoint: Endpoint,
 }
 
 impl Net {
     pub fn new(bind_addr: SocketAddr) -> Self {
         Self {
             endpoint: Self::make_server_endpoint(bind_addr).unwrap(),
-            client_endpoint: Self::make_client_endpoint().unwrap(),
+            //client_endpoint: Self::make_client_endpoint().unwrap(),
         }
     }
 
@@ -34,19 +34,13 @@ impl Net {
         Ok(client_config)
     }
 
-    fn make_client_endpoint() -> Result<(Endpoint)> {
-        let (_, der) = Self::configure_server().unwrap();
-        let client_cfg = Self::configure_client(der).unwrap();
-        let mut endpoint = Endpoint::client(Self::server_addr()).unwrap();
-        endpoint.set_default_client_config(client_cfg);
-        Ok(endpoint)
-    }
+    
 
     fn make_server_endpoint(bind_addr: SocketAddr) -> Result<Endpoint> {
         let (server_config, server_cert) = Self::configure_server()?;
         let mut endpoint = Endpoint::server(server_config, bind_addr)?;
-        let client_cfg = Self::configure_client(server_cert.into()).unwrap();
-        endpoint.set_default_client_config(client_cfg);
+        //let client_cfg = Self::configure_client(server_cert.into()).unwrap();
+        //endpoint.set_default_client_config(client_cfg);
         Ok(endpoint)
     }
 

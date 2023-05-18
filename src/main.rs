@@ -1,4 +1,5 @@
 use bend::{node::Node, protocol::{ SyncMessage}};
+use crdts::{CmRDT, Dot};
 use futures::executor::block_on;
 use std::{
     collections::{btree_set::Range, BTreeSet},
@@ -7,6 +8,7 @@ use std::{
     net::SocketAddr,
     sync::Arc,
 };
+//use matrix_rs::Matrix;
 
 #[tokio::main]
 async fn main() {
@@ -24,6 +26,19 @@ async fn daemon() {
     bend.store.insert("fsd dvnenvsdnvdv".to_string());
     bend.store.insert("dfbgnsdjsdavnvjkanlva".to_string());
     bend.store.insert("cbsdjhcbshjks".to_string());
+
+    //register clock events
+    bend.clock.local_casual.apply(Dot::new("A".to_string(), 5));
+
+    let mut matric_clock: Vec<Vec<i32>> = Vec::new();
+
+   
+    let a = bend.clock.local_casual.get(&"A".to_string()) as i32;
+    
+   
+
+   println!("{:?}", a);
+
 
 
     loop {

@@ -1,4 +1,5 @@
 use bend::{node::Node, protocol::{ SyncMessage}};
+use crdts::{CmRDT, Dot};
 use futures::executor::block_on;
 use std::{
     collections::{btree_set::Range, BTreeSet},
@@ -24,6 +25,9 @@ async fn daemon() {
     bend.store.insert("fsd dvnenvsdnvdv".to_string());
     bend.store.insert("dfbgnsdjsdavnvjkanlva".to_string());
     bend.store.insert("cbsdjhcbshjks".to_string());
+    
+    //register clock events
+    bend.clock.apply(Dot::new("A".to_string(), 5));
 
     let mut msg = SyncMessage {
         //Intentionally set the id to kick off sync
@@ -37,7 +41,7 @@ async fn daemon() {
     
 
     //let resp = bend.handle_msg(msg).unwrap().unwrap();
-    bend.cli_endpoint.connect("127.0.0.1:46078".parse().unwrap(), "localhost").unwrap().await.unwrap();
+   
 
     loop {
         while let Some(con) = server.accept().await {

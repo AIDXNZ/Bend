@@ -1,4 +1,5 @@
 use anyhow::Result;
+use crdts::VClock;
 use diamond_types::list::OpLog;
 use futures::FutureExt;
 use quinn::{congestion, ClientConfig, Connection, Endpoint, ServerConfig};
@@ -12,7 +13,7 @@ use std::{
     thread,
 };
 
-use crate::{net, protocol::SyncMessage};
+use crate::{net, protocol::SyncMessage, clock::AuthenticatedMatrixClock};
 
 #[derive(Clone)]
 pub struct BendConfig {
@@ -28,7 +29,7 @@ pub struct Node {
     pub store: BTreeSet<String>,
     pub op_log: OpLog,
     pub endpoint: Endpoint,
-    pub cli_endpoint: Endpoint,
+    pub clock: AuthenticatedMatrixClock,
 }
 impl Default for BendConfig {
     fn default() -> Self {
@@ -50,7 +51,8 @@ impl Node {
             store: BTreeSet::new(),
             op_log: OpLog::new(),
             endpoint: network.endpoint,
-            cli_endpoint: network.client_endpoint,
+            clock: AuthenticatedMatrixClock::new(),
+            
         }
     }
 
